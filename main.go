@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"lawbook_video_chat/server"
 	"log"
 	"net/http"
@@ -9,8 +8,7 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "HTTP network address")
-	flag.Parse()
+
 	server.AllRooms.Init()
 	go server.BroadCaster()
 
@@ -20,8 +18,15 @@ func main() {
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
-	infoLog.Printf("Starting a server on %s", *addr)
-	err := http.ListenAndServe(":8000", nil)
+	// IMPORTANT: Use the PORT environment variable on DigitalOcean
+	port := os.Getenv("PORT")
+	if port == "" {
+		// local development fallback
+		port = "8000"
+	}
+
+	infoLog.Printf("Starting a server on :%s", port)
+	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		errorLog.Println(err)
 	}
