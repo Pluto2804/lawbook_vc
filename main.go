@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", ":8000", "HTTP network address")
+	addr := flag.String("addr", ":8080", "HTTP network address")
 	flag.Parse()
 	server.AllRooms.Init()
 	go server.BroadCaster()

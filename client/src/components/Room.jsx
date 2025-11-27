@@ -114,7 +114,7 @@ const Room = () => {
         userStream.current = stream;
 
         // create and open websocket
-        const ws = new WebSocket(`ws://localhost:8000/join?roomID=${encodeURIComponent(room_id)}`);
+        const ws = new WebSocket(`ws://localhost:8080/join?roomID=${encodeURIComponent(room_id)}`);
         webSocketRef.current = ws;
 
         ws.addEventListener("open", () => {
