@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"lawbook_video_chat/server"
 	"log"
 	"net/http"
@@ -8,7 +9,9 @@ import (
 )
 
 func main() {
-
+	// For local development: default 8080
+	addr := flag.String("addr", ":8080", "HTTP network address")
+	flag.Parse()
 	server.AllRooms.Init()
 	go server.BroadCaster()
 
@@ -24,10 +27,15 @@ func main() {
 		// local development fallback
 		port = "8000"
 	}
-
-	infoLog.Printf("Starting a server on :%s", port)
-	err := http.ListenAndServe(":"+port, nil)
+	infoLog.Printf("Starting a server on %s", *addr)
+	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
 		errorLog.Println(err)
 	}
+
+	// infoLog.Printf("Starting a server on :%s", port)
+	// err := http.ListenAndServe(":"+port, nil)
+	// if err != nil {
+	// 	errorLog.Println(err)
+	// }
 }
