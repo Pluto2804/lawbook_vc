@@ -204,10 +204,53 @@ const Room = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room_id]);
 
-  return (
-    <div>
-      <video autoPlay playsInline ref={userVideo} muted controls={true} style={{ width: "45%" }} />
-      <video autoPlay playsInline ref={partnerVideo} controls={true} style={{ width: "45%" }} />
+return (
+    <div className="space-y-6">
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            Room {room_id}
+          </h1>
+          <p className="text-sm text-[var(--color-muted)]">
+            Secure peer-to-peer session
+          </p>
+        </div>
+
+        <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-400">
+          Live
+        </span>
+      </header>
+
+      {/* Video Grid */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {/* You */}
+        <div className="card space-y-2">
+          <p className="text-sm text-[var(--color-muted)]">
+            You
+          </p>
+          <video
+            ref={userVideo}
+            autoPlay
+            muted
+            playsInline
+            className="aspect-video w-full rounded-lg bg-black"
+          />
+        </div>
+
+        {/* Partner */}
+        <div className="card space-y-2">
+          <p className="text-sm text-[var(--color-muted)]">
+            Participant
+          </p>
+          <video
+            ref={partnerVideo}
+            autoPlay
+            playsInline
+            className="aspect-video w-full rounded-lg bg-black"
+          />
+        </div>
+      </div>
     </div>
   );
 };
