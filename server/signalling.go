@@ -36,13 +36,18 @@ func JoinRoomReqHandler(w http.ResponseWriter, r *http.Request) {
 	participant := &Participant{Conn: ws}
 	count := AllRooms.AddParticipant(roomID, participant)
 
-	// ONLY when second user joins → tell first user to start offer
+	// When SECOND user joins → notify FIRST to create offer
 	if count == 2 {
 		other := AllRooms.GetOther(roomID, ws)
 		if other != nil {
 			other.Conn.WriteJSON(Signal{Type: "ready"})
 		}
 	}
+
+	defer func() {
+		AllRooms.Remove(roomID, ws)
+		ws.Close()
+	}()
 
 	for {
 		var msg Signal
@@ -56,6 +61,4 @@ func JoinRoomReqHandler(w http.ResponseWriter, r *http.Request) {
 			other.Conn.WriteJSON(msg)
 		}
 	}
-
-	ws.Close()
 }
