@@ -22,7 +22,21 @@ const Room = () => {
   // ---------- PEER ----------
   const createPeer = () => {
     const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+
+        // 🔥 TURN (required for mobile networks)
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+        {
+          urls: "turn:openrelay.metered.ca:443",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+      ],
     });
 
     peer.onicecandidate = (e) => {
@@ -108,7 +122,6 @@ const Room = () => {
 
           switch (msg.type) {
             case "ready":
-              // ONLY FIRST USER RECEIVES THIS
               await startCall();
               break;
 
@@ -133,7 +146,6 @@ const Room = () => {
 
     return () => {
       mounted = false;
-
       wsRef.current?.close();
       peerRef.current?.close();
       userStream.current?.getTracks().forEach((t) => t.stop());
@@ -182,4 +194,3 @@ const Room = () => {
 };
 
 export default Room;
-
