@@ -114,7 +114,12 @@ const Room = () => {
         userStream.current = stream;
 
         // create and open websocket
-        const ws = new WebSocket(`ws://localhost:8080/join?roomID=${encodeURIComponent(room_id)}`);
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(
+  `${protocol}://${window.location.host}/ws/join?roomID=${room_id}`
+);
+
+
         webSocketRef.current = ws;
 
         ws.addEventListener("open", () => {
