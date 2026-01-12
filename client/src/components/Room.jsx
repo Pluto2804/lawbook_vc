@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 const Room = () => {
@@ -11,32 +11,38 @@ const Room = () => {
   const peerRef = useRef(null);
   const wsRef = useRef(null);
 
-  // ---------------- MEDIA ----------------
+  const [connected, setConnected] = useState(false);
+
+  // ==========================
+  // MEDIA
+  // ==========================
   const openCamera = async () => {
     return navigator.mediaDevices.getUserMedia({
-      video: true,
       audio: true,
+      video: true,
     });
   };
 
-  // ---------------- PEER ----------------
+  // ==========================
+  // PEER CONNECTION
+  // ==========================
   const createPeer = () => {
     const peer = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
 
-        // ✅ EXPRESS TURN (mobile-safe)
+        
         {
           urls: "turn:free.expressturn.com:3478",
           username: "efPU52K4SLOQ34W2QY",
-          credential: "1TJPNFxHKX7ZfeIz",
+          credential: "1TJPNFxHKX7Zfelz",
         },
       ],
     });
 
     peer.onicecandidate = (e) => {
-      if (e.candidate) {
-        wsRef.current?.send(
+      if (e.candidate && wsRef.current) {
+        wsRef.current.send(
           JSON.stringify({
             type: "ice",
             candidate: e.candidate,
@@ -46,29 +52,30 @@ const Room = () => {
     };
 
     peer.ontrack = (e) => {
-      const stream = e.streams[0];
-      if (!partnerVideo.current) return;
+      console.log("Remote track received");
 
-      partnerVideo.current.srcObject = stream;
-      partnerVideo.current.playsInline = true;
+      if (partnerVideo.current) {
+        partnerVideo.current.srcObject = e.streams[0];
 
-      // 🔥 MOBILE AUTOPLAY FIX
-      partnerVideo.current.muted = true;
-      partnerVideo.current
-        .play()
-        .then(() => {
-          partnerVideo.current.muted = false;
-        })
-        .catch(() => {
-          console.warn("Autoplay blocked — tap required");
-        });
+       
+        partnerVideo.current
+          .play()
+          .then(() => console.log("Remote video playing"))
+          .catch(() => console.log("Autoplay blocked (user gesture required)"));
+      }
+
+      setConnected(true);
     };
 
     return peer;
   };
 
-  // ---------------- CALLER ----------------
+  // ==========================
+  // CALLER (1st user)
+  // ==========================
   const startCall = async () => {
+    console.log("Starting call (offer)");
+
     peerRef.current = createPeer();
 
     userStream.current.getTracks().forEach((track) => {
@@ -86,10 +93,13 @@ const Room = () => {
     );
   };
 
-  // ---------------- ANSWERER ----------------
+  // ==========================
+  // ANSWERER (2nd user)
+  // ==========================
   const handleOffer = async (offer) => {
-    peerRef.current = createPeer();
+    console.log("Handling offer");
 
+    peerRef.current = createPeer();
     await peerRef.current.setRemoteDescription(offer);
 
     userStream.current.getTracks().forEach((track) => {
@@ -107,7 +117,9 @@ const Room = () => {
     );
   };
 
-  // ---------------- EFFECT ----------------
+  // ==========================
+  // MAIN EFFECT
+  // ==========================
   useEffect(() => {
     let mounted = true;
 
@@ -142,7 +154,9 @@ const Room = () => {
               break;
 
             case "ice":
-              await peerRef.current.addIceCandidate(msg.candidate);
+              if (peerRef.current) {
+                await peerRef.current.addIceCandidate(msg.candidate);
+              }
               break;
 
             default:
@@ -154,26 +168,34 @@ const Room = () => {
 
     return () => {
       mounted = false;
+
       wsRef.current?.close();
       peerRef.current?.close();
+
       userStream.current?.getTracks().forEach((t) => t.stop());
     };
   }, [room_id]);
 
-  // ---------------- UI ----------------
+  // ==========================
+  // UI
+  // ==========================
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Room {room_id}</h1>
-          <p className="text-sm text-gray-400">Secure peer-to-peer session</p>
+          <p className="text-sm text-gray-400">
+            Secure peer-to-peer session
+          </p>
         </div>
+
         <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-400">
           Live
         </span>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* LOCAL */}
         <div>
           <p className="text-sm text-gray-400 mb-2">You</p>
           <video
@@ -185,24 +207,20 @@ const Room = () => {
           />
         </div>
 
+        {/* REMOTE */}
         <div>
-          <p className="text-sm text-gray-400 mb-2">Participant</p>
+          <p className="text-sm text-gray-400 mb-2">
+            Participant {connected && "✓"}
+          </p>
           <video
             ref={partnerVideo}
             autoPlay
+            muted         
             playsInline
             className="w-full rounded-lg bg-black aspect-video"
           />
         </div>
       </div>
-
-      {/* 🔥 MOBILE FALLBACK */}
-      <button
-        onClick={() => partnerVideo.current?.play()}
-        className="fixed bottom-4 right-4 bg-amber-600 text-white px-4 py-2 rounded"
-      >
-        Tap to enable video
-      </button>
     </div>
   );
 };
