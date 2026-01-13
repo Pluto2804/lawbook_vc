@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Copy, Check, Brain } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Copy, Check } from "lucide-react";
 
 const Room = () => {
   const userVideo = useRef(null);
@@ -14,12 +14,6 @@ const Room = () => {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluations, setEvaluations] = useState([]);
-  const [showEvalPanel, setShowEvalPanel] = useState(false);
-  
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
 
   const openCamera = async () => {
     const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -69,7 +63,8 @@ const Room = () => {
     if (userStream.current) {
       userStream.current.getTracks().forEach((t) => t.stop());
     }
-    window.location.href = "/";
+    // In your app, navigate back: window.location.href = "/";
+    alert("Call ended");
   };
 
   const copyRoomLink = () => {
@@ -78,96 +73,6 @@ const Room = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  };
-
-  const startEvaluation = () => {
-    if (!userStream.current) return;
-    
-    setIsEvaluating(true);
-    setShowEvalPanel(true);
-    
-    const audioTrack = userStream.current.getAudioTracks()[0];
-    const audioStream = new MediaStream([audioTrack]);
-    
-    const mediaRecorder = new MediaRecorder(audioStream, {
-      mimeType: 'audio/webm'
-    });
-    
-    mediaRecorderRef.current = mediaRecorder;
-    audioChunksRef.current = [];
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-      }
-    };
-    
-    mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      await sendForEvaluation(audioBlob);
-      audioChunksRef.current = [];
-      
-      if (isEvaluating && mediaRecorderRef.current) {
-        setTimeout(() => {
-          if (mediaRecorderRef.current && isEvaluating) {
-            mediaRecorderRef.current.start();
-            setTimeout(() => {
-              if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-                mediaRecorderRef.current.stop();
-              }
-            }, 5000);
-          }
-        }, 300);
-      }
-    };
-    
-    mediaRecorder.start();
-    setTimeout(() => {
-      if (mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-      }
-    }, 5000);
-  };
-
-  const stopEvaluation = () => {
-    setIsEvaluating(false);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-    mediaRecorderRef.current = null;
-  };
-
-  const sendForEvaluation = async (audioBlob) => {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'chunk.webm');
-    formData.append('reference', 'Under the Fourth Amendment, police generally require a warrant to conduct a search. However, exceptions exist, such as exigent circumstances where evidence may be destroyed, harm may occur, or a suspect might escape.');
-    
-    try {
-      const response = await fetch('/api/evaluate', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (response.ok) {
-        const evaluation = await response.json();
-        setEvaluations(prev => [...prev.slice(-9), evaluation]);
-      } else {
-        console.error('Evaluation failed:', await response.text());
-      }
-    } catch (err) {
-      console.error('Evaluation error:', err);
-    }
-  };
-
-  const getAccuracyColor = (acc) => {
-    if (acc >= 0.80) return 'text-green-400';
-    if (acc >= 0.50) return 'text-yellow-400';
-    return 'text-red-400';
-  };
-
-  const getAvgAccuracy = () => {
-    if (evaluations.length === 0) return 0;
-    return evaluations.reduce((sum, e) => sum + e.accuracy, 0) / evaluations.length;
   };
 
   useEffect(() => {
@@ -253,7 +158,7 @@ const Room = () => {
 
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         const ws = new WebSocket(
-          `${protocol}://${window.location.host}/join?roomID=${room_id}`
+          `${protocol}://${window.location.host}/ws/join?roomID=${room_id}`
         );
 
         webSocketRef.current = ws;
@@ -344,6 +249,7 @@ const Room = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
+        {/* Header */}
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">
@@ -355,6 +261,7 @@ const Room = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Copy Room Link Button */}
             <button
               onClick={copyRoomLink}
               className="flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-sm font-medium text-white transition-colors ring-1 ring-slate-700"
@@ -372,6 +279,7 @@ const Room = () => {
               )}
             </button>
 
+            {/* Connection Status */}
             <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-2 ring-1 ring-emerald-500/20">
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-medium text-emerald-400">
@@ -381,7 +289,9 @@ const Room = () => {
           </div>
         </header>
 
+        {/* Video Grid */}
         <div className="relative">
+          {/* Partner Video - Large Main View */}
           <div className="relative h-[600px] overflow-hidden rounded-2xl bg-slate-900/50 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl">
             <video
               ref={partnerVideo}
@@ -405,6 +315,7 @@ const Room = () => {
             </div>
           </div>
 
+          {/* Your Video - Picture-in-Picture */}
           <div className="absolute bottom-6 right-6 w-80 h-60 overflow-hidden rounded-xl bg-slate-900/80 backdrop-blur-xl ring-2 ring-white/20 shadow-2xl">
             <video
               ref={userVideo}
@@ -429,8 +340,10 @@ const Room = () => {
           </div>
         </div>
 
+        {/* Control Bar */}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20">
           <div className="flex items-center gap-4 rounded-full bg-slate-900/95 backdrop-blur-xl px-6 py-4 shadow-2xl ring-1 ring-white/10">
+            {/* Mute Button */}
             <button
               onClick={toggleMute}
               className={`group relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-200 ${
@@ -445,8 +358,12 @@ const Room = () => {
               ) : (
                 <Mic className="h-6 w-6 text-white" />
               )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {isMuted ? "Unmute" : "Mute"}
+              </span>
             </button>
 
+            {/* Video Button */}
             <button
               onClick={toggleVideo}
               className={`group relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-200 ${
@@ -461,91 +378,24 @@ const Room = () => {
               ) : (
                 <Video className="h-6 w-6 text-white" />
               )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {isVideoOff ? "Camera on" : "Camera off"}
+              </span>
             </button>
 
-            <button
-              onClick={isEvaluating ? stopEvaluation : startEvaluation}
-              className={`group relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-200 ${
-                isEvaluating
-                  ? "bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400/50 animate-pulse"
-                  : "bg-slate-700 hover:bg-slate-600"
-              }`}
-              title={isEvaluating ? "Stop AI Evaluation" : "Start AI Evaluation"}
-            >
-              <Brain className="h-6 w-6 text-white" />
-            </button>
-
+            {/* End Call Button */}
             <button
               onClick={endCall}
               className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-red-600 transition-all duration-200 hover:bg-red-700 hover:scale-110 ring-2 ring-red-500/50"
               title="End call"
             >
               <PhoneOff className="h-6 w-6 text-white" />
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                End call
+              </span>
             </button>
           </div>
         </div>
-
-        {showEvalPanel && (
-          <div className="fixed top-20 right-4 w-96 max-h-[600px] overflow-hidden rounded-2xl bg-slate-900/95 backdrop-blur-xl shadow-2xl ring-1 ring-white/10 z-30">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-400" />
-                <h3 className="font-semibold text-white">AI Evaluation</h3>
-              </div>
-              <button
-                onClick={() => setShowEvalPanel(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {evaluations.length > 0 && (
-              <div className="p-4 bg-slate-800/50 border-b border-slate-700">
-                <div className="text-sm text-slate-400 mb-1">Average Accuracy</div>
-                <div className={`text-2xl font-bold ${getAccuracyColor(getAvgAccuracy())}`}>
-                  {(getAvgAccuracy() * 100).toFixed(0)}%
-                </div>
-                <div className="mt-2 h-2 bg-slate-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-500"
-                    style={{ width: `${getAvgAccuracy() * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="overflow-y-auto max-h-[400px] p-4 space-y-3">
-              {evaluations.length === 0 ? (
-                <div className="text-center text-slate-500 py-8">
-                  No evaluations yet. Start speaking!
-                </div>
-              ) : (
-                evaluations.map((evaluation, idx) => (
-                  <div key={idx} className="p-3 bg-slate-800/50 rounded-lg ring-1 ring-slate-700">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-slate-500">{evaluation.time}</span>
-                      <span className={`text-lg font-bold ${getAccuracyColor(evaluation.accuracy)}`}>
-                        {(evaluation.accuracy * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-2">
-                      <div 
-                        className={`h-full transition-all duration-300 ${
-                          evaluation.accuracy >= 0.8 ? 'bg-green-400' :
-                          evaluation.accuracy >= 0.5 ? 'bg-yellow-400' :
-                          'bg-red-400'
-                        }`}
-                        style={{ width: `${evaluation.accuracy * 100}%` }}
-                      />
-                    </div>
-                    <p className="text-sm text-slate-300">{evaluation.feedback}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
