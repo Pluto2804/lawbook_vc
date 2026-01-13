@@ -110,7 +110,7 @@ where evidence may be destroyed, harm may occur, or a suspect might escape.`
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	model := geminiClient.GenerativeModel("gemini-2.5-pro")
+	model := geminiClient.GenerativeModel("gemini-2.5-flash")
 
 	prompt := fmt.Sprintf(`You are an evaluator. Compare the user's spoken argument in the audio to this reference argument:
 
