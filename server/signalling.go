@@ -1,68 +1,87 @@
 package server
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
 )
 
+// Allrooms is basically a global hashmap for the server
 var AllRooms RoomMap
 
+// Create a room and return room id
+func CreateRoomReqHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	roomID := AllRooms.CreateRoom()
+
+	type resp struct {
+		RoomID string `json:"room_id"`
+	}
+	log.Println(AllRooms.Map)
+	json.NewEncoder(w).Encode(resp{RoomID: roomID})
+
+}
+
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
-type Signal struct {
-	Type      string                 `json:"type"`
-	Offer     map[string]interface{} `json:"offer,omitempty"`
-	Answer    map[string]interface{} `json:"answer,omitempty"`
-	Candidate map[string]interface{} `json:"candidate,omitempty"`
+type broadCastMsg struct {
+	Message map[string]interface{}
+	RoomID  string
+	Client  *websocket.Conn
 }
 
-func JoinRoomReqHandler(w http.ResponseWriter, r *http.Request) {
-	roomID := r.URL.Query().Get("roomID")
-	if roomID == "" {
-		http.Error(w, "roomID missing", http.StatusBadRequest)
-		return
-	}
+var broadcast = make(chan broadCastMsg)
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	participant := &Participant{Conn: ws}
-	count := AllRooms.AddParticipant(roomID, participant)
-
-	// When SECOND user joins → notify FIRST to start offer
-	if count == 2 {
-		if other := AllRooms.GetOther(roomID, ws); other != nil {
-			other.Conn.WriteJSON(Signal{Type: "ready"})
-		}
-	}
-
-	defer func() {
-		AllRooms.Remove(roomID, ws)
-		ws.Close()
-	}()
-
+func BroadCaster() {
 	for {
-		var msg Signal
-		if err := ws.ReadJSON(&msg); err != nil {
-			log.Println("read error:", err)
-			break
-		}
+		msg := <-broadcast
 
-		AllRooms.Mutex.Lock()
-		participants := AllRooms.Map[roomID]
-		AllRooms.Mutex.Unlock()
-
-		for _, p := range participants {
-			if p.Conn != ws {
-				_ = p.Conn.WriteJSON(msg)
+		clients := AllRooms.Map[msg.RoomID]
+		for _, client := range clients {
+			if client.Conn != msg.Client {
+				err := client.Conn.WriteJSON(msg.Message)
+				if err != nil {
+					log.Println("Write error:", err)
+					client.Conn.Close()
+				}
 			}
 		}
 	}
+}
+
+// Joins the client to a particular room
+func JoinRoomReqHandler(w http.ResponseWriter, r *http.Request) {
+	roomID := r.URL.Query()["roomID"]
+	if len(roomID) == 0 {
+		log.Println("roomID missing in URL Parameters")
+		return
+	}
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Websocket upgrage error ", err)
+		return
+	}
+	AllRooms.InsertIntoRoom(roomID[0], false, ws)
+	for {
+		var msg broadCastMsg
+
+		err := ws.ReadJSON(&msg.Message)
+		if err != nil {
+			log.Println("Read error:", err)
+			break
+		}
+
+		msg.Client = ws
+		msg.RoomID = roomID[0]
+		log.Println(msg.Message)
+		broadcast <- msg
+	}
+
+	ws.Close()
 }
