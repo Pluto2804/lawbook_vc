@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 const Room = () => {
   const { room_id } = useParams();
-  const navigate = useNavigate();
 
   const userVideo = useRef(null);
   const partnerVideo = useRef(null);
 
-  const userStream = useRef(null);
+  const streamRef = useRef(null);
   const peerRef = useRef(null);
   const wsRef = useRef(null);
 
-  const [muted, setMuted] = useState(false);
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
 
   // ---------- MEDIA ----------
-  const openCamera = async () => {
+  const openMedia = async () => {
     return navigator.mediaDevices.getUserMedia({
       audio: true,
       video: true,
@@ -27,15 +27,12 @@ const Room = () => {
     const peer = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
+
+        // TURN (REQUIRED for mobile networks)
         {
-          urls: "turn:openrelay.metered.ca:80",
-          username: "openrelayproject",
-          credential: "openrelayproject",
-        },
-        {
-          urls: "turn:openrelay.metered.ca:443",
-          username: "openrelayproject",
-          credential: "openrelayproject",
+          urls: "turn:free.express.turn.com:3478",
+          username: "efPU52K4SLOQ34W2QY",
+          credential: "1TJPNFxHKXrZfeIz",
         },
       ],
     });
@@ -43,13 +40,18 @@ const Room = () => {
     peer.onicecandidate = (e) => {
       if (e.candidate) {
         wsRef.current?.send(
-          JSON.stringify({ type: "ice", candidate: e.candidate })
+          JSON.stringify({
+            type: "ice",
+            candidate: e.candidate,
+          })
         );
       }
     };
 
     peer.ontrack = (e) => {
-      partnerVideo.current.srcObject = e.streams[0];
+      if (partnerVideo.current) {
+        partnerVideo.current.srcObject = e.streams[0];
+      }
     };
 
     return peer;
@@ -59,14 +61,19 @@ const Room = () => {
   const startCall = async () => {
     peerRef.current = createPeer();
 
-    userStream.current.getTracks().forEach((track) =>
-      peerRef.current.addTrack(track, userStream.current)
-    );
+    streamRef.current.getTracks().forEach((track) => {
+      peerRef.current.addTrack(track, streamRef.current);
+    });
 
     const offer = await peerRef.current.createOffer();
     await peerRef.current.setLocalDescription(offer);
 
-    wsRef.current.send(JSON.stringify({ type: "offer", offer }));
+    wsRef.current.send(
+      JSON.stringify({
+        type: "offer",
+        offer,
+      })
+    );
   };
 
   // ---------- ANSWERER ----------
@@ -75,20 +82,29 @@ const Room = () => {
 
     await peerRef.current.setRemoteDescription(offer);
 
-    userStream.current.getTracks().forEach((track) =>
-      peerRef.current.addTrack(track, userStream.current)
-    );
+    streamRef.current.getTracks().forEach((track) => {
+      peerRef.current.addTrack(track, streamRef.current);
+    });
 
     const answer = await peerRef.current.createAnswer();
     await peerRef.current.setLocalDescription(answer);
 
-    wsRef.current.send(JSON.stringify({ type: "answer", answer }));
+    wsRef.current.send(
+      JSON.stringify({
+        type: "answer",
+        answer,
+      })
+    );
   };
 
   // ---------- EFFECT ----------
   useEffect(() => {
-    openCamera().then((stream) => {
-      userStream.current = stream;
+    let active = true;
+
+    openMedia().then((stream) => {
+      if (!active) return;
+
+      streamRef.current = stream;
       userVideo.current.srcObject = stream;
 
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -101,71 +117,99 @@ const Room = () => {
       ws.onmessage = async (e) => {
         const msg = JSON.parse(e.data);
 
-        if (msg.type === "ready") await startCall();
-        if (msg.type === "offer") await handleOffer(msg.offer);
-        if (msg.type === "answer")
-          await peerRef.current.setRemoteDescription(msg.answer);
-        if (msg.type === "ice")
-          await peerRef.current.addIceCandidate(msg.candidate);
+        switch (msg.type) {
+          case "ready":
+            await startCall();
+            break;
+
+          case "offer":
+            await handleOffer(msg.offer);
+            break;
+
+          case "answer":
+            await peerRef.current.setRemoteDescription(msg.answer);
+            break;
+
+          case "ice":
+            await peerRef.current.addIceCandidate(msg.candidate);
+            break;
+
+          default:
+            break;
+        }
       };
     });
 
-    return () => endCall();
-    // eslint-disable-next-line
+    return () => {
+      active = false;
+      wsRef.current?.close();
+      peerRef.current?.close();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
   }, [room_id]);
 
   // ---------- CONTROLS ----------
-  const toggleMute = () => {
-    userStream.current.getAudioTracks().forEach(
-      (track) => (track.enabled = muted)
-    );
-    setMuted(!muted);
+  const toggleMic = () => {
+    streamRef.current.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+      setMicOn(t.enabled);
+    });
   };
 
-  const endCall = () => {
-    wsRef.current?.close();
-    peerRef.current?.close();
-    userStream.current?.getTracks().forEach((t) => t.stop());
-    navigate("/");
+  const toggleCam = () => {
+    streamRef.current.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+      setCamOn(t.enabled);
+    });
   };
 
   // ---------- UI ----------
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Room {room_id}</h1>
-        <span className="text-green-400 text-sm">Live</span>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Room {room_id}</h1>
+          <p className="text-sm text-gray-400">Secure peer-to-peer session</p>
+        </div>
+        <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-400">
+          Live
+        </span>
       </header>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <video
           ref={userVideo}
           autoPlay
           muted
           playsInline
-          className="w-full rounded-lg bg-black aspect-video"
+          className="w-full aspect-video rounded-lg bg-black"
         />
         <video
           ref={partnerVideo}
           autoPlay
           playsInline
-          className="w-full rounded-lg bg-black aspect-video"
+          className="w-full aspect-video rounded-lg bg-black"
         />
       </div>
 
-      <div className="flex gap-4 justify-center">
+      {/* Controls */}
+      <div className="flex justify-center gap-4 pt-4">
         <button
-          onClick={toggleMute}
-          className="px-4 py-2 bg-slate-700 rounded-lg"
+          onClick={toggleMic}
+          className={`px-4 py-2 rounded ${
+            micOn ? "bg-gray-700" : "bg-red-600"
+          }`}
         >
-          {muted ? "Unmute" : "Mute"}
+          {micOn ? "Mute" : "Unmute"}
         </button>
 
         <button
-          onClick={endCall}
-          className="px-4 py-2 bg-red-600 rounded-lg"
+          onClick={toggleCam}
+          className={`px-4 py-2 rounded ${
+            camOn ? "bg-gray-700" : "bg-red-600"
+          }`}
         >
-          End Call
+          {camOn ? "Camera Off" : "Camera On"}
         </button>
       </div>
     </div>
@@ -173,3 +217,4 @@ const Room = () => {
 };
 
 export default Room;
+
