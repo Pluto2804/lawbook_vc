@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
 
 const Room = () => {
   const userVideo = useRef(null);
@@ -7,7 +7,13 @@ const Room = () => {
   const partnerVideo = useRef(null);
   const peerRef = useRef(null);
   const webSocketRef = useRef(null);
-  const { room_id } = useParams();
+  
+  // For demo, using a fixed room_id - in your app this comes from useParams
+  const room_id = "demo-room-123";
+
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const openCamera = async () => {
     const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -27,14 +33,48 @@ const Room = () => {
     return navigator.mediaDevices.getUserMedia(constraints);
   };
 
+  const toggleMute = () => {
+    if (userStream.current) {
+      const audioTrack = userStream.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (userStream.current) {
+      const videoTrack = userStream.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoOff(!videoTrack.enabled);
+      }
+    }
+  };
+
+  const endCall = () => {
+    if (webSocketRef.current) {
+      webSocketRef.current.close();
+    }
+    if (peerRef.current) {
+      peerRef.current.close();
+    }
+    if (userStream.current) {
+      userStream.current.getTracks().forEach((t) => t.stop());
+    }
+    // In your app, navigate back: window.location.href = "/";
+    alert("Call ended");
+  };
+
   useEffect(() => {
     let mounted = true;
 
-    // ---- Peer helpers ----
     const handleTrackEvent = (e) => {
       console.log("Received tracks event", e);
       if (partnerVideo.current && e.streams && e.streams[0]) {
         partnerVideo.current.srcObject = e.streams[0];
+        setIsConnected(true);
       }
     };
 
@@ -75,7 +115,6 @@ const Room = () => {
     const callUser = () => {
       console.log("Calling other user");
       peerRef.current = createPeer();
-      // add local tracks to peer
       if (userStream.current) {
         userStream.current.getTracks().forEach((track) => {
           peerRef.current.addTrack(track, userStream.current);
@@ -87,15 +126,12 @@ const Room = () => {
       console.log("Received offer — creating answer");
       try {
         peerRef.current = createPeer();
-        // Set remote description
         await peerRef.current.setRemoteDescription(offer);
-        // Add local tracks
         if (userStream.current) {
           userStream.current.getTracks().forEach((track) => {
             peerRef.current.addTrack(track, userStream.current);
           });
         }
-        // Create and send answer
         const answer = await peerRef.current.createAnswer();
         await peerRef.current.setLocalDescription(answer);
         if (webSocketRef.current && webSocketRef.current.readyState === WebSocket.OPEN) {
@@ -106,19 +142,16 @@ const Room = () => {
       }
     };
 
-    // ---- Start camera and websocket ----
     openCamera()
       .then((stream) => {
         if (!mounted) return;
         userVideo.current && (userVideo.current.srcObject = stream);
         userStream.current = stream;
 
-        // create and open websocket
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-const ws = new WebSocket(
-  `${protocol}://${window.location.host}/ws/join?roomID=${room_id}`
-);
-
+        const ws = new WebSocket(
+          `${protocol}://${window.location.host}/ws/join?roomID=${room_id}`
+        );
 
         webSocketRef.current = ws;
 
@@ -132,7 +165,6 @@ const ws = new WebSocket(
             const message = JSON.parse(e.data);
 
             if (message.join) {
-              // other peer joined, initiate call
               callUser();
             }
 
@@ -148,7 +180,6 @@ const ws = new WebSocket(
             }
 
             if (message.offer) {
-              // message.offer should be RTCSessionDescriptionInit — pass directly
               await handleOffer(message.offer);
             }
 
@@ -169,6 +200,7 @@ const ws = new WebSocket(
 
         ws.addEventListener("close", () => {
           console.log("WebSocket closed");
+          setIsConnected(false);
         });
 
         ws.addEventListener("error", (err) => {
@@ -179,7 +211,6 @@ const ws = new WebSocket(
         console.error("Could not open camera or start media:", err);
       });
 
-    // ---- cleanup on unmount ----
     return () => {
       mounted = false;
       if (webSocketRef.current) {
@@ -201,59 +232,142 @@ const ws = new WebSocket(
       }
 
       if (userStream.current) {
-        // stop all local tracks
         userStream.current.getTracks().forEach((t) => t.stop());
         userStream.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room_id]);
 
-return (
-    <div className="space-y-6">
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            Room {room_id}
-          </h1>
-          <p className="text-sm text-[var(--color-muted)]">
-            Secure peer-to-peer session
-          </p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
+      <div className="mx-auto max-w-7xl">
+        {/* Header */}
+        <header className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Room {room_id}
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              End-to-end encrypted peer-to-peer session
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-2 ring-1 ring-emerald-500/20">
+              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-sm font-medium text-emerald-400">
+                {isConnected ? "Connected" : "Waiting..."}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Video Grid */}
+        <div className="relative">
+          {/* Partner Video - Large Main View */}
+          <div className="relative h-[600px] overflow-hidden rounded-2xl bg-slate-900/50 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl">
+            <video
+              ref={partnerVideo}
+              autoPlay
+              playsInline
+              className="h-full w-full object-cover"
+            />
+            {!isConnected && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90">
+                <div className="text-center">
+                  <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-slate-800 ring-4 ring-slate-700/50">
+                    <Video className="h-8 w-8 text-slate-400" />
+                  </div>
+                  <p className="text-lg font-medium text-slate-300">Waiting for participant...</p>
+                  <p className="mt-2 text-sm text-slate-500">Share the room link to connect</p>
+                </div>
+              </div>
+            )}
+            <div className="absolute top-4 left-4 rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/10">
+              Participant
+            </div>
+          </div>
+
+          {/* Your Video - Picture-in-Picture */}
+          <div className="absolute bottom-6 right-6 w-80 h-60 overflow-hidden rounded-xl bg-slate-900/80 backdrop-blur-xl ring-2 ring-white/20 shadow-2xl">
+            <video
+              ref={userVideo}
+              autoPlay
+              muted
+              playsInline
+              className="h-full w-full object-cover"
+            />
+            {isVideoOff && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                <div className="text-center">
+                  <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
+                    <VideoOff className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <p className="text-sm text-slate-400">Camera off</p>
+                </div>
+              </div>
+            )}
+            <div className="absolute top-3 left-3 rounded-lg bg-black/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium text-white ring-1 ring-white/10">
+              You {isMuted && "(Muted)"}
+            </div>
+          </div>
         </div>
 
-        <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-400">
-          Live
-        </span>
-      </header>
+        {/* Control Bar */}
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20">
+          <div className="flex items-center gap-4 rounded-full bg-slate-900/95 backdrop-blur-xl px-6 py-4 shadow-2xl ring-1 ring-white/10">
+            {/* Mute Button */}
+            <button
+              onClick={toggleMute}
+              className={`group relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-200 ${
+                isMuted
+                  ? "bg-red-500 hover:bg-red-600 ring-2 ring-red-400/50"
+                  : "bg-slate-700 hover:bg-slate-600"
+              }`}
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? (
+                <MicOff className="h-6 w-6 text-white" />
+              ) : (
+                <Mic className="h-6 w-6 text-white" />
+              )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {isMuted ? "Unmute" : "Mute"}
+              </span>
+            </button>
 
-      {/* Video Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* You */}
-        <div className="card space-y-2">
-          <p className="text-sm text-[var(--color-muted)]">
-            You
-          </p>
-          <video
-            ref={userVideo}
-            autoPlay
-            muted
-            playsInline
-            className="aspect-video w-full rounded-lg bg-black"
-          />
-        </div>
+            {/* Video Button */}
+            <button
+              onClick={toggleVideo}
+              className={`group relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-200 ${
+                isVideoOff
+                  ? "bg-red-500 hover:bg-red-600 ring-2 ring-red-400/50"
+                  : "bg-slate-700 hover:bg-slate-600"
+              }`}
+              title={isVideoOff ? "Turn on camera" : "Turn off camera"}
+            >
+              {isVideoOff ? (
+                <VideoOff className="h-6 w-6 text-white" />
+              ) : (
+                <Video className="h-6 w-6 text-white" />
+              )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {isVideoOff ? "Camera on" : "Camera off"}
+              </span>
+            </button>
 
-        {/* Partner */}
-        <div className="card space-y-2">
-          <p className="text-sm text-[var(--color-muted)]">
-            Participant
-          </p>
-          <video
-            ref={partnerVideo}
-            autoPlay
-            playsInline
-            className="aspect-video w-full rounded-lg bg-black"
-          />
+            {/* End Call Button */}
+            <button
+              onClick={endCall}
+              className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-red-600 transition-all duration-200 hover:bg-red-700 hover:scale-110 ring-2 ring-red-500/50"
+              title="End call"
+            >
+              <PhoneOff className="h-6 w-6 text-white" />
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                End call
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
