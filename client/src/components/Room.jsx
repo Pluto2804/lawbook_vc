@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Copy, Check } from "lucide-react";
 
 const Room = () => {
   const userVideo = useRef(null);
@@ -14,6 +14,7 @@ const Room = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const openCamera = async () => {
     const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -65,6 +66,14 @@ const Room = () => {
     }
     // In your app, navigate back: window.location.href = "/";
     alert("Call ended");
+  };
+
+  const copyRoomLink = () => {
+    const roomLink = `${window.location.origin}/room/${room_id}`;
+    navigator.clipboard.writeText(roomLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   useEffect(() => {
@@ -242,7 +251,7 @@ const Room = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
         {/* Header */}
-        <header className="mb-8 flex items-center justify-between">
+        <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">
               Room {room_id}
@@ -252,7 +261,26 @@ const Room = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Copy Room Link Button */}
+            <button
+              onClick={copyRoomLink}
+              className="flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-sm font-medium text-white transition-colors ring-1 ring-slate-700"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-green-400" />
+                  <span>Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  <span>Copy Invite Link</span>
+                </>
+              )}
+            </button>
+
+            {/* Connection Status */}
             <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-2 ring-1 ring-emerald-500/20">
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-medium text-emerald-400">
