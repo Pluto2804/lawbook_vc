@@ -35,7 +35,7 @@ func main() {
 	http.HandleFunc("/join", server.JoinRoomReqHandler)
 
 	// New AI evaluation route
-	http.HandleFunc("/api/evaluate", server.HandleEvaluateAudio)
+	http.HandleFunc("/evaluate", server.HandleEvaluateAudio)
 
 	// Serve static frontend files
 	http.Handle("/", http.FileServer(http.Dir("./client/dist")))
