@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Copy, Check } from "lucide-react";
 
 const Room = () => {
@@ -7,9 +8,7 @@ const Room = () => {
   const partnerVideo = useRef(null);
   const peerRef = useRef(null);
   const webSocketRef = useRef(null);
-  
-  // For demo, using a fixed room_id - in your app this comes from useParams
-  const room_id = "demo-room-123";
+  const { room_id } = useParams();
 
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
