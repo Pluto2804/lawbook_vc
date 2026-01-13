@@ -11,11 +11,10 @@ const Room = () => {
   const peerRef = useRef(null);
   const wsRef = useRef(null);
 
-  const [connected, setConnected] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [needsTap, setNeedsTap] = useState(false);
 
-  // ==========================
-  // MEDIA
-  // ==========================
+  // ---------- MEDIA ----------
   const openCamera = async () => {
     return navigator.mediaDevices.getUserMedia({
       audio: true,
@@ -23,17 +22,23 @@ const Room = () => {
     });
   };
 
-  // ==========================
-  // PEER CONNECTION
-  // ==========================
+  // ---------- PEER ----------
   const createPeer = () => {
     const peer = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
-
-        
         {
           urls: "turn:free.expressturn.com:3478",
+          username: "efPU52K4SLOQ34W2QY",
+          credential: "1TJPNFxHKX7Zfelz",
+        },
+        {
+          urls: "turn:free.expressturn.com:3478?transport=tcp",
+          username: "efPU52K4SLOQ34W2QY",
+          credential: "1TJPNFxHKX7Zfelz",
+        },
+        {
+          urls: "turns:free.expressturn.com:443?transport=tcp",
           username: "efPU52K4SLOQ34W2QY",
           credential: "1TJPNFxHKX7Zfelz",
         },
@@ -41,41 +46,31 @@ const Room = () => {
     });
 
     peer.onicecandidate = (e) => {
-      if (e.candidate && wsRef.current) {
-        wsRef.current.send(
-          JSON.stringify({
-            type: "ice",
-            candidate: e.candidate,
-          })
+      if (e.candidate) {
+        wsRef.current?.send(
+          JSON.stringify({ type: "ice", candidate: e.candidate })
         );
       }
     };
 
     peer.ontrack = (e) => {
-      console.log("Remote track received");
+      const video = partnerVideo.current;
+      if (!video) return;
 
-      if (partnerVideo.current) {
-        partnerVideo.current.srcObject = e.streams[0];
+      video.muted = true; // mobile-safe
+      video.playsInline = true;
+      video.srcObject = e.streams[0];
 
-       
-        partnerVideo.current
-          .play()
-          .then(() => console.log("Remote video playing"))
-          .catch(() => console.log("Autoplay blocked (user gesture required)"));
-      }
-
-      setConnected(true);
+      video
+        .play()
+        .catch(() => setNeedsTap(true));
     };
 
     return peer;
   };
 
-  // ==========================
-  // CALLER (1st user)
-  // ==========================
+  // ---------- CALLER ----------
   const startCall = async () => {
-    console.log("Starting call (offer)");
-
     peerRef.current = createPeer();
 
     userStream.current.getTracks().forEach((track) => {
@@ -85,21 +80,13 @@ const Room = () => {
     const offer = await peerRef.current.createOffer();
     await peerRef.current.setLocalDescription(offer);
 
-    wsRef.current.send(
-      JSON.stringify({
-        type: "offer",
-        offer,
-      })
-    );
+    wsRef.current.send(JSON.stringify({ type: "offer", offer }));
   };
 
-  // ==========================
-  // ANSWERER (2nd user)
-  // ==========================
+  // ---------- ANSWERER ----------
   const handleOffer = async (offer) => {
-    console.log("Handling offer");
-
     peerRef.current = createPeer();
+
     await peerRef.current.setRemoteDescription(offer);
 
     userStream.current.getTracks().forEach((track) => {
@@ -109,17 +96,10 @@ const Room = () => {
     const answer = await peerRef.current.createAnswer();
     await peerRef.current.setLocalDescription(answer);
 
-    wsRef.current.send(
-      JSON.stringify({
-        type: "answer",
-        answer,
-      })
-    );
+    wsRef.current.send(JSON.stringify({ type: "answer", answer }));
   };
 
-  // ==========================
-  // MAIN EFFECT
-  // ==========================
+  // ---------- EFFECT ----------
   useEffect(() => {
     let mounted = true;
 
@@ -131,34 +111,26 @@ const Room = () => {
         userVideo.current.srcObject = stream;
 
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const ws = new WebSocket(
+        wsRef.current = new WebSocket(
           `${protocol}://${window.location.host}/ws/join?roomID=${room_id}`
         );
 
-        wsRef.current = ws;
-
-        ws.onmessage = async (e) => {
+        wsRef.current.onmessage = async (e) => {
           const msg = JSON.parse(e.data);
 
           switch (msg.type) {
             case "ready":
               await startCall();
               break;
-
             case "offer":
               await handleOffer(msg.offer);
               break;
-
             case "answer":
               await peerRef.current.setRemoteDescription(msg.answer);
               break;
-
             case "ice":
-              if (peerRef.current) {
-                await peerRef.current.addIceCandidate(msg.candidate);
-              }
+              await peerRef.current.addIceCandidate(msg.candidate);
               break;
-
             default:
               break;
           }
@@ -168,17 +140,25 @@ const Room = () => {
 
     return () => {
       mounted = false;
-
       wsRef.current?.close();
       peerRef.current?.close();
-
       userStream.current?.getTracks().forEach((t) => t.stop());
     };
   }, [room_id]);
 
-  // ==========================
-  // UI
-  // ==========================
+  // ---------- MUTE / UNMUTE ----------
+  const toggleMute = () => {
+    const audioTrack = userStream.current
+      ?.getAudioTracks()
+      ?.find((t) => t.kind === "audio");
+
+    if (!audioTrack) return;
+
+    audioTrack.enabled = !audioTrack.enabled;
+    setIsMuted(!audioTrack.enabled);
+  };
+
+  // ---------- UI ----------
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
@@ -188,14 +168,13 @@ const Room = () => {
             Secure peer-to-peer session
           </p>
         </div>
-
         <span className="rounded-full bg-green-600/20 px-3 py-1 text-xs text-green-400">
           Live
         </span>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* LOCAL */}
+        {/* YOU */}
         <div>
           <p className="text-sm text-gray-400 mb-2">You</p>
           <video
@@ -205,20 +184,34 @@ const Room = () => {
             playsInline
             className="w-full rounded-lg bg-black aspect-video"
           />
+          <button
+            onClick={toggleMute}
+            className={`mt-3 px-4 py-2 rounded text-white ${
+              isMuted ? "bg-red-600" : "bg-green-600"
+            }`}
+          >
+            {isMuted ? "Unmute" : "Mute"}
+          </button>
         </div>
 
-        {/* REMOTE */}
+        {/* PARTICIPANT */}
         <div>
-          <p className="text-sm text-gray-400 mb-2">
-            Participant {connected && "✓"}
-          </p>
+          <p className="text-sm text-gray-400 mb-2">Participant</p>
           <video
             ref={partnerVideo}
             autoPlay
-            muted         
+            muted
             playsInline
             className="w-full rounded-lg bg-black aspect-video"
           />
+          {needsTap && (
+            <button
+              onClick={() => partnerVideo.current?.play()}
+              className="mt-3 px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Tap to start audio/video
+            </button>
+          )}
         </div>
       </div>
     </div>
