@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#1e3a5f" stroke="#d4af37" stroke-width="3"/>
+  
+  <!-- Open law book -->
+  <g>
+    <!-- Left page -->
+    <path d="M 25 30 Q 25 28 27 28 L 48 28 L 48 70 L 27 70 Q 25 70 25 68 Z" 
+          fill="#f5f5f5" stroke="#8b7355" stroke-width="1.5"/>
+    
+    <!-- Right page -->
+    <path d="M 52 28 L 73 28 Q 75 28 75 30 L 75 68 Q 75 70 73 70 L 52 70 Z" 
+          fill="#f5f5f5" stroke="#8b7355" stroke-width="1.5"/>
+    
+    <!-- Book spine/center -->
+    <rect x="48" y="28" width="4" height="42" fill="#8b7355"/>
+    
+    <!-- Text lines on left page -->
+    <line x1="30" y1="35" x2="45" y2="35" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="30" y1="40" x2="45" y2="40" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="30" y1="45" x2="45" y2="45" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="30" y1="50" x2="42" y2="50" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    
+    <!-- Text lines on right page -->
+    <line x1="55" y1="35" x2="70" y2="35" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="55" y1="40" x2="70" y2="40" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="55" y1="45" x2="70" y2="45" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    <line x1="55" y1="50" x2="68" y2="50" stroke="#1e3a5f" stroke-width="1" opacity="0.6"/>
+    
+    <!-- Scale/balance symbol (justice) overlay -->
+    <g opacity="0.9">
+      <!-- Central pillar -->
+      <rect x="48" y="55" width="4" height="12" fill="#d4af37"/>
+      
+      <!-- Left scale plate -->
+      <ellipse cx="38" cy="58" rx="7" ry="2" fill="#d4af37"/>
+      <line x1="38" y1="58" x2="50" y2="58" stroke="#d4af37" stroke-width="1.5"/>
+      
+      <!-- Right scale plate -->
+      <ellipse cx="62" cy="58" rx="7" ry="2" fill="#d4af37"/>
+      <line x1="50" y1="58" x2="62" y2="58" stroke="#d4af37" stroke-width="1.5"/>
+      
+      <!-- Top of scale -->
+      <circle cx="50" cy="58" r="2" fill="#d4af37"/>
+    </g>
+  </g>
+  
+  <!-- Video camera icon in corner -->
+  <g transform="translate(65, 20)">
+    <rect x="0" y="0" width="12" height="9" rx="1" fill="#d4af37"/>
+    <path d="M 12 2 L 17 0 L 17 9 L 12 7 Z" fill="#d4af37"/>
+    <circle cx="6" cy="4.5" r="2" fill="#1e3a5f"/>
+  </g>
+</svg>
