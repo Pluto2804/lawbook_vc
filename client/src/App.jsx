@@ -15,13 +15,17 @@ function Layout({ children }) {
 export default function App() {
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<CreateRoom />} />
-          <Route path="/room/:room_id" element={<Room />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* CreateRoom doesn't need Layout - it's full-screen */}
+        <Route path="/" element={<CreateRoom />} />
+        
+        {/* Room page uses Layout */}
+        <Route path="/room/:room_id" element={
+          <Layout>
+            <Room />
+          </Layout>
+        } />
+      </Routes>
     </Router>
   );
 }
-
