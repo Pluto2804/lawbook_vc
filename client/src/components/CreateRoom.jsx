@@ -53,7 +53,7 @@ const CreateRoom = () => {
   };
 
   return (
-    <div className="bg-gradient-to-br from-[#0B1120] via-[#101828] to-[#0B1120] relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#0B1120] via-[#101828] to-[#0B1120] relative overflow-hidden">
       {/* Sophisticated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-amber-500/5 to-transparent rounded-full blur-3xl"></div>
@@ -62,7 +62,7 @@ const CreateRoom = () => {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex items-center justify-center px-6 py-12">
+      <div className="relative z-10 flex items-center justify-center min-h-screen px-6 py-12">
         <div className="w-full max-w-[480px]">
           {/* Logo and Header */}
           <div className="text-center mb-12">
